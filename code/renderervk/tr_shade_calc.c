@@ -22,6 +22,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // tr_shade_calc.c
 
 #include "tr_local.h"
+#ifdef _GCC_VSX
+#include <altivec.h>
+#undef bool
+#undef pixel
+#endif
 // -EC-: avoid using ri.ftol
 #define	WAVEVALUE( table, base, amplitude, phase, freq )  ((base) + table[ (int64_t)( ( ( (phase) + tess.shaderTime * (freq) ) * FUNCTABLE_SIZE ) ) & FUNCTABLE_MASK ] * (amplitude))
 
@@ -1280,7 +1285,67 @@ static void RB_CalcDiffuseColor_scalar( unsigned char *colors )
 }
 
 
+#ifdef _GCC_VSX
+static void RB_CalcDiffuseColor_vsx( unsigned char *colors )
+{
+	int				i;
+	float			*normal;
+	const trRefEntity_t *ent;
+	int				ambientLightInt;
+	int				numVertexes;
+	__vector float	vAmbient, vDirected;
+	__vector float	vZero, v255;
+
+	ent = backEnd.currentEntity;
+	ambientLightInt = ent->ambientLightInt;
+
+	vAmbient  = vec_xl( 0, ent->ambientLight );
+	vDirected = vec_xl( 0, ent->directedLight );
+	vZero = vec_splats( 0.0f );
+	v255  = vec_splats( 255.0f );
+
+	normal = tess.normal[0];
+
+	numVertexes = tess.numVertexes;
+	for ( i = 0; i < numVertexes; i++, normal += 4 ) {
+		__vector float vIncoming, vColor;
+		__vector unsigned int vColorInt;
+		float incoming;
+
+		/* DotProduct( normal, lightDir ) */
+		incoming = normal[0] * ent->lightDir[0]
+		         + normal[1] * ent->lightDir[1]
+		         + normal[2] * ent->lightDir[2];
+
+		if ( incoming <= 0 ) {
+			*(int *)&colors[i*4] = ambientLightInt;
+			continue;
+		}
+
+		/* ambient + incoming * directed, clamped to [0, 255] */
+		vIncoming = vec_splats( incoming );
+		vColor = vec_madd( vIncoming, vDirected, vAmbient );
+		vColor = vec_max( vColor, vZero );
+		vColor = vec_min( vColor, v255 );
+
+		/* convert to unsigned int */
+		vColorInt = vec_ctu( vColor, 0 );
+
+		/* pack to bytes: extract each channel */
+		colors[i*4+0] = (unsigned char) vec_extract( vColorInt, 0 );
+		colors[i*4+1] = (unsigned char) vec_extract( vColorInt, 1 );
+		colors[i*4+2] = (unsigned char) vec_extract( vColorInt, 2 );
+		colors[i*4+3] = 255;
+	}
+}
+#endif
+
+
 void RB_CalcDiffuseColor( unsigned char *colors )
 {
+#ifdef _GCC_VSX
+	RB_CalcDiffuseColor_vsx( colors );
+#else
 	RB_CalcDiffuseColor_scalar( colors );
+#endif
 }

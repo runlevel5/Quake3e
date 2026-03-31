@@ -1235,6 +1235,7 @@ void RB_CalcSpecularAlpha( unsigned char *alphas ) {
 **
 ** The basic vertex lighting calc
 */
+#ifndef _GCC_VSX
 static void RB_CalcDiffuseColor_scalar( unsigned char *colors )
 {
 	int				i, j;
@@ -1283,6 +1284,7 @@ static void RB_CalcDiffuseColor_scalar( unsigned char *colors )
 		colors[i*4+3] = 255;
 	}
 }
+#endif /* !_GCC_VSX */
 
 
 #ifdef _GCC_VSX

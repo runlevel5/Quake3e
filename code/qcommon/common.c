@@ -3651,12 +3651,25 @@ void Sys_SnapVector( float *vector )
 
 #else // idx64, non-x86
 
+#if defined(_GCC_VSX)
+#include <altivec.h>
+#undef bool
+#undef pixel
+void Sys_SnapVector( float *vector )
+{
+	__vector float v, r;
+	v = vec_xl( 0, vector );
+	r = vec_rint( v );
+	vec_xst( r, 0, vector );
+}
+#else
 void Sys_SnapVector( float *vector )
 {
 	vector[0] = rint( vector[0] );
 	vector[1] = rint( vector[1] );
 	vector[2] = rint( vector[2] );
 }
+#endif
 
 #endif
 

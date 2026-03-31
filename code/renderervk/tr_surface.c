@@ -22,6 +22,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // tr_surf.c
 #include "tr_local.h"
 
+#ifdef _GCC_VSX
+#include <altivec.h>
+#undef bool
+#undef pixel
+#endif
+
 /*
 
   THIS ENTIRE FILE IS BACK END
@@ -702,11 +708,29 @@ static void RB_SurfaceLightningBolt( void ) {
 static void VectorArrayNormalize(vec4_t *normals, unsigned int count)
 {
 //    assert(count);
+#ifdef _GCC_VSX
+	__vector float v, dot, estimate, half, three, result;
+	half = vec_splats( 0.5f );
+	three = vec_splats( 3.0f );
+	while ( count-- ) {
+		v = vec_xl( 0, (float *)normals[0] );
+		dot = vec_splats( normals[0][0] * normals[0][0] +
+		                  normals[0][1] * normals[0][1] +
+		                  normals[0][2] * normals[0][2] );
+		estimate = vec_rsqrte( dot );
+		/* Newton-Raphson: e = e * (3 - dot * e^2) * 0.5 */
+		estimate = vec_mul( vec_mul( estimate, vec_sub( three, vec_mul( dot, vec_mul( estimate, estimate ) ) ) ), half );
+		result = vec_mul( v, estimate );
+		vec_xst( result, 0, (float *)normals[0] );
+		normals++;
+	}
+#else
 	// given the input, it's safe to call VectorNormalizeFast
     while ( count-- ) {
         VectorNormalizeFast(normals[0]);
         normals++;
     }
+#endif
 }
 
 

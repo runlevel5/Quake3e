@@ -231,3 +231,30 @@ ELSE()
 	TARGET_LINK_LIBRARIES(${CNAME}${BINEXT} m ${CMAKE_DL_LIBS})
 	TARGET_LINK_LIBRARIES(${DNAME}${BINEXT} m ${CMAKE_DL_LIBS})
 ENDIF()
+
+# vmfuzz — differential interpreter-vs-JIT QVM fuzzer
+# Opt-in: cmake -DBUILD_VMFUZZ=ON
+IF(BUILD_VMFUZZ)
+	SET(VMFUZZ_SRCS
+		code/tools/vmfuzz/vmfuzz.c
+		code/qcommon/vm.c
+		code/qcommon/vm_interpreted.c
+		code/qcommon/q_shared.c
+		code/qcommon/q_math.c
+		code/qcommon/puff.c
+	)
+	IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le|ppc64")
+		LIST(APPEND VMFUZZ_SRCS code/qcommon/vm_powerpc.c)
+	ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES AMD64|x86|i.86)
+		LIST(APPEND VMFUZZ_SRCS code/qcommon/vm_x86.c)
+	ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES aarch64|arm64)
+		LIST(APPEND VMFUZZ_SRCS code/qcommon/vm_aarch64.c)
+	ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES arm.*)
+		LIST(APPEND VMFUZZ_SRCS code/qcommon/vm_armv7l.c)
+	ENDIF()
+	ADD_EXECUTABLE(vmfuzz ${VMFUZZ_SRCS})
+	TARGET_COMPILE_DEFINITIONS(vmfuzz PRIVATE DEDICATED VMFUZZ_BUILD)
+	IF(NOT WIN32)
+		TARGET_LINK_LIBRARIES(vmfuzz m ${CMAKE_DL_LIBS})
+	ENDIF()
+ENDIF()
